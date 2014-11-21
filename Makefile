@@ -1,9 +1,12 @@
 LIBS=-lmysqlclient -lstdc++
 CXXFLAGS=-std=c++11
 
-.PHONY: all clean
+.PHONY: all clean check
 
 all:
+
+check: test
+	./test
 
 test: test.o
 	gcc $^ -o $@ $(LIBS)
@@ -11,6 +14,8 @@ test: test.o
 .o:.cpp
 	gcc $< -o $@ $(CXXFLAGS)
 
+test.o: test.cpp
+test.cpp: mysql.hpp
 
 clean:
 	rm -rf test

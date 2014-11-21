@@ -17,13 +17,14 @@ class mysql {
             }
         }
 
-        void connect(
+        bool connect(
                 const char* host, const char* user, const char* password,
                 const char* db, unsigned int port, const char* unix_socket, unsigned long client_flag) {
             MYSQL* h = mysql_real_connect(handle, host, user, password,
-                                         db, port, unix_socket, client_flag);
-            if (h) return;
+                                          db, port, unix_socket, client_flag);
+            if (h) return true;
             std::cerr << "Failed to connect to database: Error: " << mysql_error(handle) << "\n";
+            return false;
         }
 
         Stmt   prepare(std::string s);
@@ -76,6 +77,11 @@ class Stmt {
             x.params = nullptr;
             return *this;
         }
+
+        operator bool() {
+            return !!stmt;
+        }
+
 
         void bind_param(int i, enum_field_types buffer_type, void* buffer, int buffer_length, my_bool* is_null, long unsigned int* length) {
             MYSQL_BIND& b   = params[i];
@@ -162,6 +168,10 @@ class Result {
             if (res) mysql_free_result(res);
         }
 
+        operator bool() {
+            return !!res;
+        }
+
         Result& operator=(Result&& r) {
             mysql_free_result(res);
             res = r.res;
@@ -177,6 +187,11 @@ class Result {
             MYSQL_ROW row = mysql_fetch_row(res);
             unsigned long* lengths = mysql_fetch_lengths(res);
             return Row{row, lengths};
+        }
+
+        inline
+        Row next() {
+            return fetch_row();
         }
 };
 
@@ -200,13 +215,17 @@ int mysql::next_result()
 Stmt mysql::prepare(std::string s) {
     MYSQL_STMT* stmt = mysql_stmt_init(handle);
     int x = mysql_stmt_prepare(stmt, s.c_str(), s.size());
+    if (x != 0) {
+        return Stmt{};
+    }
     return Stmt{stmt};
 }
 
 Result mysql::query(std::string s) {
     int x = mysql_real_query(handle, s.c_str(), s.size());
     if (x != 0) {
-        std::cerr << "Failed to connect to database: Error: " << mysql_error(handle) << "\n";
+        std::cerr << "Error: " << mysql_error(handle) << "\n";
+        return Result{};
     }
     return use_result();
 }
